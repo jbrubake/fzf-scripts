@@ -1,0 +1,8 @@
+#!/bin/sh
+#
+curl -s https://unicode.org/Public/emoji/15.0/emoji-test.txt |
+    sed -e '/^#/d' \
+        -e '/^$/d' \
+        -e 's/^.*# //' \
+        -e 's/E[^ ]* //' |
+    fzf --ansi --no-info | cut -d' ' -f1
