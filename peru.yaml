@@ -1,5 +1,6 @@
 imports: 
   fuzzy-sys: src 
+  forgit: .
 
 git module fuzzy-sys:
   url: https://github.com/NullSense/fuzzy-sys
@@ -9,4 +10,16 @@ git module fuzzy-sys:
   pick:
     - fuzzy-sys
     - UNLICENSE
+
+git module forgit:
+  url: https://github.com/wfxr/forgit
+  move:
+    completions/git-forgit.bash:
+      - bash_completion.d/git-forgit
+    LICENSE:
+      - LICENSE.mit
+  pick:
+    - bin/git-forgit
+    - bash_completion.d/git-forgit
+    - LICENSE.mit
 
