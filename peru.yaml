@@ -1,0 +1,12 @@
+imports: 
+  fuzzy-sys: src 
+
+git module fuzzy-sys:
+  url: https://github.com/NullSense/fuzzy-sys
+  move:
+    fuzzy-sys.plugin.zsh:
+      - fuzzy-sys
+  pick:
+    - fuzzy-sys
+    - UNLICENSE
+
