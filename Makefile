@@ -1,15 +1,16 @@
 prefix = /usr/local
 srcdir = src
 bindir = bin
-completedir = bash_completion.d
+completions = completions
+completionsdir = share/bash-completion/$(completions)
 
 all: $(bindir)/fsystemctl
 
 install: all
 	install -d $(prefix)/$(bindir)
 	install $(bindir)/* $(prefix)/$(bindir)
-	install -d $(prefix)/share/$(completedir)
-	install $(completedir)/* $(prefix)/share/$(completedir)
+	install -d $(prefix)/$(completionsdir)
+	install $(completions)/* $(prefix)/$(completionsdir)
 
 
 # Convert fuzzy-sys to an executable script and
