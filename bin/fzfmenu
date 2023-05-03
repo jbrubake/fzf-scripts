@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+#
+# Inspired by:
+#   https://github.com/junegunn/fzf/wiki/examples#fzf-as-dmenu-replacement
+#
+# Main {{{1
+#
+# Create named pipes to communicate with spawned fzf
+#
+if command -v mktemp >/dev/null; then
+    input=$(mktemp -u --suffix .fzfmenu-in)
+    output=$(mktemp -u --suffix .fzfmenu-out)
+else
+    input="/tmp/tmp.$$.fzfmenu-in"
+    output="/tmp/tmp.$$.fzfmenu-out"
+fi
+
+# Delete pipes on exit
+trap "kill $! 2>/dev/null; rm -f '$intput' '$output'" EXIT
+
+mask=$(umask)
+umask 0077
+mkfifo "$input"
+mkfifo "$output"
+umask "$mask"
+
+# Try not to exit if calling process is killed
+if command -v setsid >/dev/null; then
+    cmd=setsid
+else
+    cmd=nohup
+fi
+
+# the ugly printf | sed thing is here to make args with quotes work.  (e.g.
+# --preview='echo {1}').  sadly we can't use "$@" here directly because we are
+# inside sh -c "..." call already.
+$cmd st -c fzfmenu -n fzfmenu -e sh -c "
+    cat $input |
+    fzf $(printf -- " '%s'" "$@" | sed "s/^ ''$//") |
+    tee $output" >/dev/null 2>&1 &
+
+# Redirect stdin and stdout
+cat > "$input"
+cat "$output"
+
