@@ -1,0 +1,217 @@
+#!/bin/sh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+#
+# abstract: manage a pass(1) database using fzf
+#
+# Inspired by:
+#   https://git.sr.ht/~mlaparie/passfzf/tree/master/item/passfzf
+#
+# Globals {{{1
+#
+store=${PASSWORD_STORE_DIR:-"$HOME/.password-store"}
+
+# Keybinding for each command
+#
+add="ctrl-a"
+move="ctrl-r"
+copy="ctrl-d"
+generate="ctrl-g"
+change="ctrl-k"
+delete="ctrl-t"
+pull="ctrl-p"
+push="alt-p"
+show="ctrl-s"
+edit="ctrl-e"
+quit="esc,ctrl-c,ctrl-q"
+
+header=$(echo "\
+    [Enter]Copy [$add]Insert [$quit]Exit
+    [$show]Show [$edit]Edit [$generate]Generate
+    [$move]Rename [$copy]Copy [$delete]Delete
+    [$pull]git-pull [$push]git-push " | column -t)
+
+# Functions {{{1
+#
+# readstr {{{2
+#
+# @description Prompt for and read a string
+#
+# @arg $1 string Prompt
+# @arg $2 string Variable to save read string to
+#
+readstr() {
+    printf '%s ' "$2"
+    read -r "$1"
+    # Return true unless no string was read
+    eval "[ -n \"\$$1\" ]"
+}
+
+# runcmd {{{2
+#
+# @description Run a pass(1) command, prompting for needed arguments
+#   and pause if necessary
+#
+# @arg $1 string Command to run
+# @arg $2 string Entry to operate on (optional)
+# @arg $3 string Prompt string (optional)
+#
+runcmd() {
+    cmd=$1
+    entry=$2
+    prompt=$3
+
+    # Commands that need a(n) (additional) entry name
+    if [ -n "$prompt" ]; then
+        # Getting an empty string means the command was aborted so just return
+        if readstr s "$prompt"; then
+            # if entry != '' then run pass cmd "entry" "s"
+            # if entry == '' then run pass cmd "s"
+            #
+            # NOTE: cmd is unquoted because it may have options. The third
+            # parameter below has no outer quotes because 'pass insert' fails if
+            # it gets a second parameter
+            #
+            # shellcheck disable=SC2086
+            pass $cmd "${entry:-"$s"}" ${entry:+"$s"}
+        else
+            return
+        fi
+    # Commands that only need one entry name
+    elif [ -n "$entry" ]; then
+        # NOTE: cmd is unquoted because it may have options
+        # shellcheck disable=SC2086
+        pass $cmd "$entry" || return # || return is for canceling 'pass delete'
+    # Commands that do not need an entry name
+    else
+        # NOTE: cmd is unquoted because it may have options
+        # shellcheck disable=SC2086
+        pass $cmd
+    fi
+
+    # Pause
+    echo
+    readstr dummy "Press any key to continue..."
+}
+
+# mkpass {{{2
+#
+# @description Generate and return a password
+#
+# @noargs
+#
+mkpass() {
+    # shellcheck disable=SC2086
+    passgen $PASSGEN_OPTS
+}
+
+# get_action() {{{2
+#
+get_action() {
+    # 1. Find all *.gpg files in store
+    # 2. Remove .gpg extension
+    # 3. Delete store path
+    # 4. Remove trailing '/'
+    output=$(find "$store" -name '*.gpg' -print | 
+        sed -e 's/\.gpg$//' \
+        -e "s@^$store@@" \
+        -e 's@^/*@@' |
+        sort |
+        fzf \
+        --ansi \
+        --no-multi \
+        --no-info \
+        --height 100% \
+        --header-first \
+        --header "$header" \
+        --expect "$add" \
+        --expect "$move" \
+        --expect "$copy" \
+        --expect "$generate" \
+        --expect "$delete" \
+        --expect "$change" \
+        --expect "$pull" \
+        --expect "$push" \
+        --expect "$show" \
+        --expect "$edit" \
+        --expect "$quit"
+    )
+
+    # Split output into command and selected entry
+    CMD=$(echo "$output" | sed -n 1p)
+    ENTRY=$(echo "$output" | sed -n 2p)
+}
+
+# Main {{{1
+#
+while true; do
+    clear
+
+    # Get a CMD to run and a possible ENTRY to run it on
+    get_action
+
+    # Exit?
+    [ "${quit#*"$CMD"}" != "$quit" ] && break
+
+    case $CMD in
+        "$pull")   runcmd 'git pull' ;;
+        "$push")   runcmd 'git push -u --all' ;;
+        "$delete") runcmd rm "$ENTRY" ;;
+        "$add")
+            runcmd 'insert -m' '' "New password name [enter to abort]:"
+            ;;
+        "$move")
+            runcmd mv "$ENTRY" "Rename '$ENTRY' to [enter to abort]:"
+            ;;
+        "$copy")
+            runcmd cp "$ENTRY" "Copy '$ENTRY' to [enter to abort]:"
+            ;;
+        "$change")
+            while :; do
+                yn= # avoid shellcheck error
+                readstr yn "Generate new password for '$ENTRY?' [y/N]"
+                case $yn in
+                    [Yy]*)
+                        newpw=$(mkpass)
+                        pass "$ENTRY" | sed "1c$newpw" | pass insert -m "$ENTRY"
+                        runcmd 'show --clip' "$ENTRY"
+                        break
+                        ;;
+                    [Nn] | "") break ;;
+                esac
+            done
+            ;;
+        "$generate")
+            name= # avoid shellcheck error
+            if readstr name "New password name [enter to abort]:"; then
+                newpw=$(mkpass)
+                # printf %s "$newpw" | pass insert -m "$name"
+                printf %s "$newpw" | runcmd 'insert -m' "$name" >/dev/null
+            runcmd 'show --clip' "$name"
+            fi
+            ;;
+        "$show")
+            runcmd show "$ENTRY"
+            ;;
+        "$edit")
+            runcmd edit "$ENTRY"
+            ;;
+        *)
+            runcmd "show --clip" "$ENTRY"
+            ;;
+    esac
+done
+
