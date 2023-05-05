@@ -1,0 +1,126 @@
+#!/bin/sh
+#
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+#
+# Inspired by:
+#   https://github.com/junegunn/fzf/wiki/examples
+#
+# Documentation {{{1
+#
+VERSION='1.0'
+
+print_help() {
+    cat <<END >&2
+Usage: $0 [OPTION] [QUERY]
+
+Use fzf to manipulate Docker containers and images
+
+QUERY can be used to refine the initial search
+
+  -h   	     display this help and exit
+  -v         output version information and exit
+END
+}
+
+print_version() {
+    cat <<END >&2
+$0 $VERSION
+Copyright (C) 2023 Orion Arts
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Jeremy Brubaker.
+END
+}
+
+# Process options {{{1
+#
+while getopts ':hv' c; do
+    case $c in
+        h) print_help; exit 0 ;;
+        v) print_version; exit 0 ;;
+        ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
+    esac
+done
+shift $((OPTIND-1))
+
+cmd=${1:-start}
+QUERY=$2
+
+# Functions {{{1
+#
+getids() {
+    multi=
+    all=
+    while getopts ':mar' c; do
+        case $c in
+            a) all=-a ;;
+            r) all= ;;
+            m) multi=-m ;;
+            ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
+        esac
+    done
+    shift $((OPTIND-1))
+
+    case $1 in
+        images)
+            type=images
+            format='{{.ID}}{{.Repository}}{{.Size}}{{.CreatedSince}}'
+            header='IDRepositorySizeCreated'
+            ;;
+        "")
+            type=ps
+            format='{{.ID}}{{.Image}}{{.Names}}{{.Status}}{{.State}}'
+            header='IDImageNamesStatusState'
+            ;;
+        *) return ;;
+    esac
+
+    docker $type $all --format "$format" |
+        sed "1i$header" |
+        column -t -s |
+        fzf --header-lines 1 \
+            $multi \
+            --query "$QUERY" \
+            --with-nth 1.. \
+            --exit-0 |
+        cut -d' ' -f1
+}
+
+# Main {{{1
+#
+case $cmd in
+    start) getids -ma | xargs -I{} docker start {} ;;
+    stop)  getids -m  | xargs -I{} docker stop {} ;;
+    rm)
+        for id in $(getids -ma); do
+            if [ $(docker inspect -f '{{.State.Running}}' "$id") = true ]; then
+                printf "Container %s is running. Force removal? " "$id"
+                read -r yn
+                case $yn in
+                    [Yy]*) docker stop "$id" ;;
+                    [Nn] | "") continue ;;
+                esac
+            fi
+            docker remove "$id"
+        done
+        ;;
+    rmi) getids -m images | xargs -I{} docker rmi {} ;;
+    *) printf "'$cmd' is invalid. Exiting...\n" >&2 ;;
+esac
+
