@@ -1,0 +1,188 @@
+#!/bin/sh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+#
+# Inspired by:
+#   https://github.com/junegunn/fzf/wiki/examples#tmux
+#
+# Defaults {{{1
+#
+ACTIVE_CLR_DFLT=2
+DATEFMT_DFLT="%d %b %y"
+
+# Documentation {{{1
+#
+VERSION='1.0'
+
+print_help() {
+    cat <<END >&2
+Usage: $0 [OPTION] [QUERY]
+
+Use fzf to switch to or kill tmux sessions, windows and panes
+
+QUERY can be used to refine the initial search
+
+  -n         do not colorize current session/window/pane
+  -c [COLOR] color to highlight the current session/window/pane
+               (256-color number, default = $TAG_CLR_DFLT)
+  -f [FMT]   date format, default = $DATEFMT_DFLT
+  -s         switch (default)
+  -k         kill
+  -h   	     display this help and exit
+  -v         output version information and exit
+END
+}
+
+print_version() {
+    cat <<END >&2
+$0 $VERSION
+Copyright (C) 2023 Orion Arts
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Jeremy Brubaker.
+END
+}
+
+# Process options {{{1
+#
+ansi=--ansi
+active_color=$(tput setaf "$ACTIVE_CLR_DFLT")
+reset=$(tput sgr0)
+datefmt=$DATEFMT_DFLT
+kill=n
+
+while getopts ':nc:f:kshv' c; do
+    case $c in
+        n) active_color= ; reset= ; ansi= ;;
+        c) active_color=$(tput setaf "$OPTARG") ;;
+        f) datefmt=$OPTARG ;;
+        k) kill=y ;;
+        s) kill=n ;;
+        h) print_help; exit 0 ;;
+        v) print_version; exit 0 ;;
+        ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
+    esac
+done
+shift $((OPTIND-1))
+
+case $1 in
+    pane* | window* | session*)
+        type=$1
+        query=$2
+        ;;
+    *)
+        printf "None of pane|window|session specified. Exiting...\n" >&2
+        exit 1
+        ;;
+esac
+
+# Functions {{{1
+#
+# get_target {{{2
+#
+# @description Use fzf to select a tmux session, window or pane
+#
+# @arg $1 pane|window|session What type to list and select
+# @arg $2 string              Initial fzf query
+#
+# @return string Tmux pane, window or sessions name/id to operate on
+#
+get_target() {
+    case $1 in
+        pane*)
+            _cur=$(tmux display-message -p "#I:#P")
+            _hdr="WIN:PANE,CMD,PATH"
+            _fmt="#I:#P#{pane_current_command}#{pane_current_path}"
+            _cmd="tmux list-panes -s"
+            ;;
+        window*)
+            _cur=$(tmux display-message -p "#I")
+            _hdr="WIN,NAME,PATH"
+            _fmt="#I#{window_name}#{pane_current_path}"
+            _cmd="tmux list-windows"
+            ;;
+        session*)
+            _cur=$(tmux display-message -p "#S")
+            _hdr="NAME,GROUP,CREATED"
+            _fmt="#{session_name}#{session_group}#{t/f/${datefmt}:session_created}"
+            _cmd="tmux list-sessions"
+            ;;
+    esac
+
+    # shellcheck disable=SC2086
+    $_cmd -F "$_fmt" |
+        sed "s@$HOME@~@" |
+        column -t -s -N "$_hdr" |
+        sed -e "/^$_cur /!s/^/  /" \
+            -e "s/^\($_cur .*\)/* $active_color&$reset/" |
+        fzf --header-lines 1 \
+            $ansi \
+            --query "$2" \
+            --exit-0  |
+        sed 's/^\*//' |
+        awk '{print $1}'
+}
+
+# kill_target {{{2
+#
+# @description Kill a tmux pane, session or window
+#
+# @arg $1 pane|window|session What type to kill
+# @arg $2 string              Name or id to kill
+#
+kill_target() {
+    [ -z "$2" ] && return
+    case $1 in
+        session*) tmux kill-session -t "$2" ;;
+        window*)  tmux kill-window  -t "$2" ;;
+        pane*)    tmux kill-pane    -t \
+            "$(echo "$2" | cut -d: -f1).$(echo "$2" | cut -d: -f2)"
+            ;;
+    esac
+}
+
+# switch_target {{{2
+#
+# @description Switch to a tmux pane, session or window
+#
+# @arg $1 pane|window|session What type to switch to
+# @arg $2 string              Name or id to switch to
+#
+switch_target() {
+    [ -z "$2" ] && return
+    case $1 in
+        session*) tmux switch-client -t "$2" ;;
+        window*)  tmux select-window  -t "$2" ;;
+        pane*)
+            _win=$(echo "$2" | cut -d: -f1)
+            _pane=$(echo "$2" | cut -d: -f2)
+            tmux select-pane -t "${_win}.${_pane}"
+            [ "$(tmux display-message -p "#I")" -eq "$_win" ] ||
+                tmux select-window -t "$_win"
+            ;;
+    esac
+}
+
+# Main {{{1
+#
+if [ "$kill" = "y" ]; then
+    kill_target "$type" "$(get_target "$type" "$query")"
+else
+    switch_target "$type" "$(get_target "$type" "$query")"
+fi
+
