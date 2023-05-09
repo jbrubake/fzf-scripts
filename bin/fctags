@@ -1,0 +1,139 @@
+#!/bin/bash
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+#
+# Inspired by:
+#   https://github.com/junegunn/fzf/wiki/examples
+#
+# Defaults {{{1
+#
+PREVIEW_LINES_DFLT=5
+TAGS_DFLT=tags
+
+# Documentation {{{1
+#
+VERSION='1.0'
+
+print_help() {
+    cat <<END >&2
+Usage: $0 [OPTION] [QUERY]
+
+Use fzf to jump to ctags
+
+QUERY can be used to refine the initial search
+
+  -f [TAGS]  search TAGS for tags (default: $TAGS_DFLT)
+  -n [NUM]   preview shows NUM lines before and after tag (default: $PREVIEW_LINES_DFLT)
+  -h   	     display this help and exit
+  -v         output version information and exit
+END
+}
+
+print_version() {
+    cat <<END >&2
+$0 $VERSION
+Copyright (C) 2023 Orion Arts
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Jeremy Brubaker.
+END
+}
+
+# Process options {{{1
+#
+nlines=$PREVIEW_LINES_DFLT
+tags=$TAGS_DFLT
+
+while getopts ':f:n:hv' c; do
+    case $c in
+        f) tags=$OPTARG ;;
+        n) nlines=$OPTARG ;;
+        h) print_help; exit 0 ;;
+        v) print_version; exit 0 ;;
+        ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
+    esac
+done
+shift $((OPTIND-1))
+
+# Functions {{{1
+#
+# getlineno {{{2
+#
+# @description Get the line number that matches a Vim regex
+#
+# @arg $1 string Vim regex to find
+# @arg $2 string Filename to search
+#
+# @return int Line number of match
+#
+getlineno() {
+    ex -Rs +'set number' \
+           +'set nomagic' \
+           +"$1p" \
+           +q! \
+           "$2" | \
+    awk '{print $1}'
+}
+export -f getlineno
+
+# preview {{{2
+#
+# @description Show a number of lines above and below a given pattern
+#
+# @arg $1 string Vim regex to match
+# @arg $2 string Filename to search and show
+# @arg $3 int    Number of lines to show before and after
+#
+# @stdout $3 lines above and below the match
+#
+preview() {
+    n=$(getlineno "$1" "$2")
+    bat --style plain --pager never --color always \
+        --line-range $((n-$3)):$((n+$3)) \
+        --highlight-line "$n" \
+        "$2"
+}
+export -f preview
+
+# Main {{{1
+#
+if ! [ -e "$tags" ]; then
+    printf "'%s' file not found\n" "$tags" >&2
+    exit 1
+fi
+
+# List tags
+#   grep: exclude lines starting with !
+#   sed 1: strip the universal-ctags comment field
+#   sed 2 & 3: separate fields with ^^ (3rd field can contain tabs)
+tag=$(grep -v ^! "$tags" |
+    sed -e 's/\(.*\);.*/\1/' \
+        -e 's/	//' \
+        -e 's/	//' |
+    fzf \
+        --delimiter  \
+        --nth 1 \
+        --with-nth 1 \
+        --preview-window down,$((nlines*2+1)) \
+        --preview "preview {3} {2} $nlines" |
+    awk -F '{print $1}')
+
+[ -z "$tag" ] && exit 0
+
+vim -t "$tag"
+
