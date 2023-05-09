@@ -1,0 +1,140 @@
+#!/bin/bash
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+#
+# Inspired by:
+#   https://raw.githubusercontent.com/DanielFGray/fzf-scripts/master/igr
+#
+# Defaults {{{1
+# grep(1) default fn color
+FILE_CLR_DFLT=35
+
+# Documentation {{{1
+#
+VERSION='1.0'
+
+print_help() {
+    cat <<END >&2
+Usage: $0 [OPTION] [QUERY]
+
+Use fzf to search end edit files
+
+QUERY can be used to refine the initial search
+
+  -n         do not colorize current session/window/pane
+  -l         list files (grep -l)
+  -h   	     display this help and exit
+  -v         output version information and exit
+END
+}
+
+print_version() {
+    cat <<END >&2
+$0 $VERSION
+Copyright (C) 2023 Orion Arts
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Jeremy Brubaker.
+END
+}
+
+# Process options {{{1
+#
+list_files=
+USE_COLOR=yes
+export USE_COLOR
+
+while getopts ':nlhv' c; do
+    case $c in
+		n) USE_COLOR= ;;
+        l) list_files=1 ;;
+        h) print_help; exit 0 ;;
+        v) print_version; exit 0 ;;
+        ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
+    esac
+done
+shift $((OPTIND-1))
+
+# Functions {{{1
+#
+# search {{{2
+#
+# @description Format grep results into a table
+#
+# @arg $1 string grep(1) search string
+#
+# @global USE_COLOR use color if set
+#
+# @stdout grep(1) results formatted into a table and colorized if needed
+#
+search() {
+	# colorized grep(1) output can't be properly run through column(1)
+	# so we have to colorize it ourselves
+	if [ -n "$USE_COLOR" ]; then
+		grepclr='--color=always'
+		reset=$(tput sgr0)
+
+		# if GREP_COLORS is defined, get the user's configured fn color
+		[ -n "$GREP_COLORS" ] &&
+			fn=$(echo "$GREP_COLORS" | sed 's/.*fn=\([^:]*\).*/\1/')
+		# set fn color as needed
+		fn=$(printf "[%sm" "${fn:-"$FILE_CLR_DFLT"}")
+		# don't let grep colorize fn and ln
+		GREP_COLORS=fn=:ln=:
+	else
+		grepclr='--color=never'
+	fi
+
+	# sed 1&2: convert field separator to ^^
+	# sed 3: colorize filename
+	grep -Rn ${list_files:+-l} $grepclr "$1" 2> /dev/null |
+	sed -e 's/://' -e 's/://' \
+		-e "s/^[^]*/$fn&$reset/" |
+	column -t -s
+}
+export -f search
+
+# preview {{{2
+#
+# @description Preview a given file around a search string and optionally highlight a line
+#
+# @arg $1 string File to preview
+# @arg $2 string Search string
+# @arg $3 int    Line to highlight (optional)
+#
+# @stdout File preview
+#
+preview() {
+	bat --color always --style header,numbers \
+		${3:+-H "$3"} \
+		"$1" | 
+	grep -C3 "$2"
+}
+export -f preview
+
+# Main {{{1
+#
+search "$1" | fzf \
+	${USE_COLOR:+--ansi} \
+	--with-nth 1,3.. \
+	--query="$1" \
+	--disabled \
+	--bind="change:reload(search {q})" \
+	--bind='enter:become(vim +{2} {1})' \
+	--preview "preview {1} {q} {2}"
+
