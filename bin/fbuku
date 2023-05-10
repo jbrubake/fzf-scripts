@@ -82,8 +82,8 @@ buku_list() {
     buku --nostdin -p -j |
         jq -r '.[] | "\(.index)\(.uri)\(.title)\(.tags)"' |
         awk -F \
-            -v color="$tag_color" \
-            -v reset="$reset" \
+            -v color="$1" \
+            -v reset="${1:+$(tput sgr0)}" \
             '{
             if(length($4))
                 $4 = "#" $4
@@ -95,22 +95,22 @@ export -f buku_list
 
 # Main {{{1
 #
-buku_list |
+buku_list "$tag_color" |
     fzf \
         --multi \
         "$ansi" \
         --query "$*" \
         --with-nth 3.. \
         --preview-window 'bottom:10%' \
-        --preview "printf %s%s%s '$url_color' '{2}' '$reset'" \
+        --preview "printf %s{2}%s '$url_color' '$reset'" \
         --header "[Enter]Open [^A]Add [^E]Edit [^D]Delete [^U]Update [^R]Refresh" \
         --header-first \
         --bind "enter:execute-multi( \
             echo {2} | tr ' ' '\n' | sed '/^http/!s@^@http://@' | \
             xargs -I% xdg-open %)+abort" \
-        --bind "ctrl-a:execute(buku -w)+reload(buku_list)" \
-        --bind "ctrl-e:execute(buku -w {1})+reload(buku_list)" \
-        --bind "ctrl-d:execute(buku -d {1})+reload(buku_list)" \
-        --bind "ctrl-u:execute(buku -u {1})+reload(buku_list)" \
-        --bind "ctrl-r:reload(buku_list)"
+        --bind "ctrl-a:execute(buku -w)+reload(buku_list '$tag_color')" \
+        --bind "ctrl-e:execute(buku -w {1})+reload(buku_list '$tag_color')" \
+        --bind "ctrl-d:execute(buku -d {1})+reload(buku_list '$tag_color')" \
+        --bind "ctrl-u:execute(buku -u {1})+reload(buku_list '$tag_color')" \
+        --bind "ctrl-r:reload(buku_list '$tag_color')"
 
