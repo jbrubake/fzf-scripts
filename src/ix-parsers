@@ -1,0 +1,85 @@
+parser_definition_main() { # {{{3
+    setup REST help:usage_main -- \
+        "Usage: ix [OPTION] [COMMAND]"
+    msg -- '' 'ix.io client' ''
+    msg -- 'Options:'
+    disp  :usage_main  -h --help    -- 'display this help and exit'
+    disp  VERSION -v --version -- 'output version information and quit'
+
+    msg -- '' 'Commands:'
+    cmd fzf     -- 'start fzf interface'
+    cmd list    -- 'list pastes'
+    cmd get     -- 'get ID'
+    cmd delete  -- 'delete ID'
+    cmd paste   -- 'paste [FILE] ... If no FILEs then paste stdin'
+    cmd replace -- 'replace ID with stdin'
+    cmd edit    -- 'edit ID'
+}
+
+parser_definition_fzf() { # {{{3
+    setup REST help:usage_fzf -- \
+        "Usage: ix fzf [OPTION]"
+    msg -- '' 'Start fzf interface to ix.io' ''
+    msg -- 'Options:'
+    param NETRC  -N --netrc   -- "path to netrc file (default: $HOME/.netrc)"
+    disp  :usage_fzf -h --help    -- 'display this help and exit'
+}
+
+parser_definition_list() { # {{{3
+    setup REST help:usage_list -- \
+        "Usage: ix list [OPTION]"
+    msg -- '' 'List pastes. Default is to list pastes for the user specified in .netrc' ''
+    msg -- 'Options:'
+    flag  ANON   -a --anon    -- 'list anonymous pastes'
+    param WHO    -u --user    -- "list WHO's pastes"
+    param NETRC  -N --netrc   -- "path to netrc file (default: $HOME/.netrc)"
+    disp  :usage_list -h --help    -- 'display this help and exit'
+}
+
+parser_definition_get() { # {{{3
+    setup REST help:usage_get -- \
+        "Usage: ix get [ID] ..."
+    msg -- '' 'Dump pastes for each ID to stdout' ''
+    msg -- 'Options:'
+    disp  :usage_get  -h --help    -- 'display this help and exit'
+}
+
+parser_definition_delete() { # {{{3
+    setup REST help:usage_delete -- \
+        "Usage: ix delete [OPTION] [ID] ..."
+    msg -- '' 'Deleete pastes for each ID' ''
+    msg -- 'Options:'
+    param NETRC   -N --netrc   -- "path to netrc file (default: $HOME/.netrc)"
+    disp  :usage_delete  -h --help    -- 'display this help and exit'
+}
+
+parser_definition_paste() { # {{{3
+    setup REST help:usage_paste -- \
+        "Usage: ix paste [OPTION] [FILE] ..."
+    msg -- '' "Paste stdin or each FILE. Appending ':<filetype>' to FILE sets its filetype" ''
+    msg -- 'Options:'
+    flag  ANON    -a --anon    -- 'paste anonymously'
+    param NETRC   -N --netrc   -- "path to netrc file (default: $HOME/.netrc)"
+    disp  :usage_paste  -h --help    -- 'display this help and exit'
+}
+
+parser_definition_replace() { # {{{3
+    setup REST help:usage_replace -- \
+        "Usage: ix replace [OPTION] [ID]"
+    msg -- '' 'Replace paste ID with the contents of stdin' ''
+    msg -- 'Options:'
+    param NETRC   -N --netrc   -- "path to netrc file (default: $HOME/.netrc)"
+    disp  :usage_replace  -h --help    -- 'display this help and exit'
+}
+
+parser_definition_edit() { # {{{3
+    setup REST help:usage_edit -- \
+        "Usage: ix edit [OPTION]"
+    msg -- '' 'Edit paste ID' ''
+    msg -- 'Options:'
+    param NETRC   -N --netrc   -- "path to netrc file (default: $HOME/.netrc)"
+    disp  :usage_edit  -h --help    -- 'display this help and exit'
+}
+
+# vim: ft=sh
+

@@ -1,0 +1,248 @@
+#!/bin/bash
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+#
+# abstract: ix.io wrapper
+#
+# https://raw.githubusercontent.com/DanielFGray/fzf-scripts/master/ix
+#
+NETRC_DFLT=$HOME/.netrc
+VERSION='1.0'
+
+URL=http://ix.io
+export URL # needed by fzf bind commands
+
+# Functions {{{1
+#
+# get_user_name {{{2
+#
+# @description Get ix.io username from netrc file
+#
+# @arg $1 string Path to netrc file
+#
+# @stdout ix.io username
+#
+get_user_name() { awk '"ix.io" == $2 { print $4 }' "$1"; }
+export -f get_user_name
+
+# get_pastes {{{2
+#
+# @description Extract and format ix.io pastes from stdin
+#
+# @noargs
+#
+# @stdin ix.io list of pastes in html
+#
+# @stdout [ID] [NAME] [DATE]
+#
+get_pastes() {
+    grep -A1 -P '\<a href="\/[[:alnum:]]+"\>' |
+    awk '
+      /a href/ {
+        sub("^[^/]*/", "", $0)
+        sub(/".*/, "", $0)
+        id = $0 }
+      /@/ {
+        sub(/^\s+/, "", $0)
+        printf("%s\t%s\n", id, $0) }' |
+    sed 's/@ /	/' |
+    column -t -s'	'
+}
+export -f get_pastes
+
+# do_list {{{2
+#
+# @description Print a table of ix.io pastes. Default is to list *your* pastes
+#
+# @arg $1 string Path to netrc file
+# @arg $1 option -a | -u [USER]: anonymous or USER pastes (optional)
+#
+# @stdout Formatted list of pastes
+#
+do_list() {
+    netrc=$1; shift
+
+    case $1 in
+        -a) url="$URL/user/";   shift ;;
+        -u) url="$URL/user/$2"; shift 2 ;;
+        *)  url="$URL/user/$(get_user_name "$netrc")" ;;
+    esac
+
+    curl -s "$url" | get_pastes
+}
+export -f do_list
+
+# do_get {{{2
+#
+# @description Get an ix.io paste by ID
+#
+# @arg $1 string ID of paste to get
+#
+# @stdout ix.io/ID paste
+#
+do_get() {
+    for id in "$@"; do
+        curl -s $cmd "$URL/$id"
+    done
+}
+export -f do_get
+
+# do_delete() {{{2
+#
+# @description Delete an ix.io paste by ID
+#
+# @arg $1 string Path to netrc file
+# @arg $2 string ID of paste to delete
+#
+do_delete() {
+    netrc=$1; shift
+    for id in "$@"; do
+        curl -s --netrc-file "$netrc" -X DELETE "$URL/$id"
+    done
+}
+export -f do_delete
+
+# do_replace() {{{2
+#
+# @description Replace an ix.io paste by ID
+#
+# @arg $1 string Path to netrc file
+# @arg $2 string ID of paste to replace
+#
+# @stdin What to replace paste with
+#
+do_replace() {
+    if [ $# -ge 2 ]; then
+        netrc=$1; shift
+        id=$1; shift
+
+        # Prompt if stdin is a tty
+        [ -t 0 ] && \
+            printf "%s\n" "Enter data to paste. ^c to cancel, ^d to send" >&2
+        cat "$@" | curl -s --netrc-file "$netrc" -X PUT -F f:1='<-' "$URL/$id"
+    fi
+}
+export -f do_replace
+
+# do_edit() {{{2
+#
+# @description Edit an ix.io paste by ID
+#
+# @arg $1 string Path to netrc file
+# @arg $2 string ID of paste to edit
+#
+do_edit() {
+    if [ $# -eq 2 ]; then
+        curl -s --netrc-file "$1" "$URL/$2" | vipe | do_replace "$1" "$2"
+    fi
+}
+export -f do_edit
+
+# do_paste() {{{2
+#
+# @description Paste files or stdin to ix.io if no files are given
+#
+# @arg $1 string Path to netrc file
+# @arg $2 option -a Paste anonymously (optional)
+# @arg $@ filename List of filenames to paste. Ending a filename with ':<type'
+#   will set the filetype (optional)
+#
+# @stdin Data to paste
+#
+# @stdout ix.io paste ID
+#
+do_paste() {
+    netrc=$1; shift
+
+    # Anonymous paste?
+    if [ "$1" = '-a' ]; then
+        opt=
+        shift
+    else
+        opt="--netrc-file $netrc"
+    fi
+
+    if [ $# -gt 0 ]; then
+        i=1
+        for f in $@; do
+            # Use ':<type>' appended to files as the type
+            case $f in
+                *:*) opt="$opt -F f:$i=@${f%:*} -F ext:$i=.${f##*:}" ;;
+                *)   opt="$opt -F f:$i=@$f" ;;
+            esac
+            i=$((i+1))
+        done
+    else
+        opt="$opt -F f:1=<-"
+        # Prompt if stdin is a tty
+        [ -t 0 ] && \
+            printf "%s\n" "Enter data to paste. ^c to cancel, ^d to send" >&2
+    fi
+    curl -s $opt "$URL"
+}
+export -f do_paste
+
+# Process options {{{1
+
+# Parse args {{{3
+#
+# @include ix-parsers
+
+# Top-level
+parse_main "$@"
+eval "set -- $REST"
+
+# Default command is list
+case $# in
+    0) cmd=list ;;
+    *) cmd=$1; shift
+esac
+
+# Sub-command
+REST=
+parse_$cmd "$@"
+eval "set -- $REST"
+
+# -a and -u are mutually exclusive
+if [ -n "$ANON" ] && [ -n "$WHO" ]; then
+    printf "Cannot specify both -a and -u. Exiting\n" >&2
+    exit 1
+fi
+
+# Main {{{1
+#
+case $cmd in
+    fzf)
+        do_list ${NETRC:-$NETRC_DFLT} | fzf \
+            --header-first \
+            --header  '[^P]aste [^E]dit [^V]iew [^D]elete [^R]eload' \
+            --preview 'do_get {1} | bat -pp --color always' \
+            --bind    "Ctrl-V:execute(do_get {1} | bat -pp --color always)" \
+            --bind    "ctrl-d:execute(do_delete '${NETRC:-$NETRC_DFLT}' {1})+reload-sync(do_list '${NETRC:-$NETRC_DFLT}')" \
+            --bind    "Ctrl-E:execute(do_edit '${NETRC:-$NETRC_DFLT}' {1})" \
+            --bind    "Ctrl-R:reload-sync(do_list '${NETRC:-$NETRC_DFLT}')" \
+            --bind    "Ctrl-P:execute(do_paste '${NETRC:-$NETRC_DFLT}')+reload-sync(do_list '${NETRC:-$NETRC_DFLT}')" |
+        cut -d' ' -f1 |
+        xargs -I{} curl -s "$URL/{}" | tee /dev/tty | xclip -selection clipboard
+        ;;
+    list)    do_list    "${NETRC:-"$NETRC_DFLT"}" ${ANON:+-a} ${WHO:+-u $WHO} ;;
+    get)     do_get     "$@" ;;
+    delete)  do_delete  "${NETRC:-"$NETRC_DFLT"}" "$@" ;;
+    replace) do_replace "${NETRC:-"$NETRC_DFLT"}" "$@" ;;
+    edit)    do_edit    "${NETRC:-"$NETRC_DFLT"}" "$1" ;;
+    paste)   do_paste   "${NETRC:-"$NETRC_DFLT"}" ${ANON:+-a} "$@" ;;
+esac
+
