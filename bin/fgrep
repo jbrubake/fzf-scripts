@@ -90,8 +90,11 @@ search() {
 		reset=$(tput sgr0)
 
 		# if GREP_COLORS is defined, get the user's configured fn color
-		[ -n "$GREP_COLORS" ] &&
-			fn=$(echo "$GREP_COLORS" | sed 's/.*fn=\([^:]*\).*/\1/')
+		if [ -n "$GREP_COLORS" ]; then
+            fn=${GREP_COLORS##*fn=}
+            fn=${fn%%:*}
+        fi
+
 		# set fn color as needed
 		fn=$(printf "[%sm" "${fn:-"$FILE_CLR_DFLT"}")
 		# don't let grep colorize fn and ln

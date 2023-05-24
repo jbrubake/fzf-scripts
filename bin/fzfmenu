@@ -31,7 +31,7 @@ else
 fi
 
 # Delete pipes on exit
-trap "kill $! 2>/dev/null; rm -f '$intput' '$output'" EXIT
+trap 'kill $! 2>/dev/null; rm -f $input $output' EXIT
 
 mask=$(umask)
 umask 0077
@@ -43,6 +43,7 @@ umask "$mask"
 if command -v setsid >/dev/null; then
     cmd=setsid
 else
+    # shellcheck disable=SC2209 # I actually mean the string 'nohup' <sigh>
     cmd=nohup
 fi
 

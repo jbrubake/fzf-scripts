@@ -84,6 +84,7 @@ getids() {
             header='IDRepositorySizeCreated'
             ;;
         "")
+            # shellcheck disable=SC2209 # I actually mean the string 'ps' <sigh>
             type=ps
             format='{{.ID}}{{.Image}}{{.Names}}{{.Status}}{{.State}}'
             header='IDImageNamesStatusState'
@@ -91,6 +92,7 @@ getids() {
         *) return ;;
     esac
 
+    # shellcheck disable=SC2086
     docker $type $all --format "$format" |
         sed "1i$header" |
         column -t -s |
@@ -109,7 +111,7 @@ case $cmd in
     stop)  getids -m  | xargs -I{} docker stop {} ;;
     rm)
         for id in $(getids -ma); do
-            if [ $(docker inspect -f '{{.State.Running}}' "$id") = true ]; then
+            if [ "$(docker inspect -f '{{.State.Running}}' "$id")" = true ]; then
                 printf "Container %s is running. Force removal? " "$id"
                 read -r yn
                 case $yn in
@@ -121,6 +123,6 @@ case $cmd in
         done
         ;;
     rmi) getids -m images | xargs -I{} docker rmi {} ;;
-    *) printf "'$cmd' is invalid. Exiting...\n" >&2 ;;
+    *) printf "'%s' is invalid. Exiting...\n" "$cmd" >&2 ;;
 esac
 
