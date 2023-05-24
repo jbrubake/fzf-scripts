@@ -74,10 +74,7 @@ shift $((OPTIND-1))
 nmcli --fields active,bssid,ssid,security,bars,signal,freq \
       --color no \
       device wifi |
-sed -e '1s/^[^ ]* *//' \
-    -e "/^no/s/.*/$active_color&$reset/" \
-    -e '2,$s/no *//' \
-    -e '/^yes/s/.*/$active_color&$reset/' |
+sed -e "/^yes/s/.*/$active_color&$reset/" |
 fzf \
     $ansi \
     --header-lines 1 \
