@@ -139,5 +139,5 @@ search "$1" | fzf \
 	--disabled \
 	--bind="change:reload(search {q})" \
 	--bind='enter:become(vim +{2} {1})' \
-	--preview "preview {1} {q} {2}"
+	--preview "[ -n {1} ] && preview {1} {q} {2}"
 
