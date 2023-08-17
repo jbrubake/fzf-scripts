@@ -197,7 +197,7 @@ export -f do_paste
 
 # Process options {{{1
 
-# Parse args {{{3
+# Parse args {{{2
 #
 # @include ix-parsers
 
