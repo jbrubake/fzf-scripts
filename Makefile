@@ -10,9 +10,7 @@ genext = gen
 completions = completions
 completionsdir = share/bash-completion/$(completions)
 
-parsers = $(shell sed -n '/parser_definition/s/.*_\(.*\)().*/\1/p' src/ix-parsers)
-
-all: $(bindir)/fsystemctl $(bindir)/ix
+all: $(bindir)/fsystemctl
 
 install: all
 	install -d $(PREFIX)/$(bindir)
@@ -37,22 +35,8 @@ $(bindir)/fsystemctl: $(srcdir)/fuzzy-sys
 	echo '$(notdir $^) "$$*"' >> $@
 	sed -i 's/$(notdir $<)/$(notdir $@)/' $@
 
-# Generate ix parsers
-$(srcdir)/ix-parsers.$(genext): $(srcdir)/ix-parsers
-	mkdir -p $(dir $@)
-	> $@
-	$(foreach p,$(parsers), < $< gengetoptions parser parser_definition_$p parse_$p ix >> $@;)
-
-# Put ix parsers into final script
-# NOTE: pre-req order matters
-$(bindir)/ix: $(srcdir)/ix $(srcdir)/ix-parsers.$(genext)
-	sed '/@include/r $(filter-out $<,$^)' $< > $@
-	chmod +x $@
-
 clean:
 	rm -f $(bindir)/fsystemctl
-	rm -f $(bindir)/ix
 
 distclean: clean
-	rm -f $(srcdir)/ix-parsers.$(genext)
 
