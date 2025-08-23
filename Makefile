@@ -10,6 +10,8 @@ genext = gen
 completions = completions
 completionsdir = share/bash-completion/$(completions)
 
+peru = .peru/lastimports
+
 all: $(bindir)/fsystemctl
 
 install: all
@@ -20,7 +22,7 @@ install: all
 
 # Convert fuzzy-sys to an executable script and
 # change the name used in the help output
-$(bindir)/fsystemctl: $(srcdir)/fuzzy-sys
+$(bindir)/fsystemctl: $(srcdir)/fuzzy-sys $(peru)
 	mkdir -p $(dir $@)
 	> $@
 	chmod +x $@
@@ -32,11 +34,14 @@ $(bindir)/fsystemctl: $(srcdir)/fuzzy-sys
 	echo "#   https://github.com/NullSense/fuzzy-sys/blob/master/fuzzy-sys.plugin.zsh" >> $@ 
 	echo "#" >> $@
 	cat $< >> $@
-	echo '$(notdir $^) "$$*"' >> $@
+	echo '$(notdir $<) "$$*"' >> $@
 	sed -i 's/$(notdir $<)/$(notdir $@)/' $@
 
 clean:
 	rm -f $(bindir)/fsystemctl
 
 distclean: clean
+
+$(peru): peru.yaml
+	peru sync
 
