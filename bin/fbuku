@@ -99,7 +99,7 @@ export -f buku_list
 buku_list "$tag_color" |
     fzf \
         --multi \
-        "$ansi" \
+        $ansi \
         --query "$*" \
         --with-nth 3.. \
         --preview-window 'bottom:10%' \
