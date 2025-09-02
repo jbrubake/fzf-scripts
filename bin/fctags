@@ -69,6 +69,7 @@ while getopts ':f:n:hv' c; do
     esac
 done
 shift $((OPTIND-1))
+OPTIND=1
 
 # Functions {{{1
 #

@@ -79,6 +79,7 @@ while getopts ':nc:f:kshv' c; do
     esac
 done
 shift $((OPTIND-1))
+OPTIND=1
 
 case $1 in
     pane* | window* | session*)
