@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Use fzf to preview fonts
+#
+fc-list | sed \
+    -e "s/: /|/" \
+    -e "s/,.*//" \
+    -e "s/:.*//" | awk -F "|" '{
+        name = $2
+        $2 = ""
+        print name "|" $0
+    }' | sort -u -k1,1 -t'|' | awk -F "|" '{
+        file = gensub(/ *$/, "", "g", $2)
+        $2 = ""
+        print file " " $0
+    }' | fzf \
+        --with-nth=2.. \
+        --preview-window 'bottom:10%' \
+        --preview 'echo {1}' \
+        --header "[Enter]Preview [^Y]Copy file path" \
+        --header-first \
+        --bind 'enter:execute(display {1})' \
+        --bind 'ctrl-y:execute(echo {1} | xclip -in -selection clipboard)+abort'
+
