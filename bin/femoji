@@ -5,4 +5,4 @@ curl -s https://unicode.org/Public/emoji/latest/emoji-test.txt |
         -e '/^$/d' \
         -e 's/^.*# //' \
         -e 's/E[^ ]* //' |
-    fzf --ansi --no-info | cut -d' ' -f1
+    fzf --ansi --no-info | cut -d' ' -f1 | tr -d '\n' | xclip -in -selection clipboard
