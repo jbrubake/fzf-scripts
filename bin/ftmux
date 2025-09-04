@@ -155,12 +155,14 @@ get_target() {
     esac
     query=$2; shift 2
 
+    [ -z "$ansi" ] && cur_mark=* || unset cur_mark
     # shellcheck disable=SC2086
     $_cmd -F "$_fmt" |
-        sed "s@$HOME@~@" |
+        sed \
+        -e "s@$HOME@~@" \
+        -e "/^$_cur/s/|\([^|]*\)/|$active_color$cur_mark\1$cur_mark/" \
+        -e "/^$_cur/s/$/$reset/" |
         column -t -s'|' -N "$_hdr" |
-        sed -e "/^$_cur /!s/^/  /" \
-            -e "s/^\($_cur .*\)/* $active_color&$reset/" |
         fzf --header-lines 1 \
             $ansi \
             --query "$query" \
