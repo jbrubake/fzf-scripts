@@ -151,6 +151,7 @@ get_target() {
             _fmt="#S|#S|#{session_group}|#{t/f/${datefmt}:session_created}"
             _cmd="tmux list-sessions"
             ;;
+        *) printf "Trying to select '%s'\n" "$1" >&2; return 1 ;;
     esac
     query=$2; shift 2
 
