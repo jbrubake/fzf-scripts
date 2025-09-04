@@ -113,19 +113,19 @@ get_target() {
         pane*)
             _cur=$(tmux display-message -p "#I:#P")
             _hdr="WIN:PANE,CMD,PATH"
-            _fmt="#I:#P#{pane_current_command}#{pane_current_path}"
+            _fmt="#I:#P|#{pane_current_command}|#{pane_current_path}"
             _cmd="tmux list-panes -s"
             ;;
         window*)
             _cur=$(tmux display-message -p "#I")
             _hdr="WIN,NAME,PATH"
-            _fmt="#I#{window_name}#{pane_current_path}"
+            _fmt="#I|#{window_name}|#{pane_current_path}"
             _cmd="tmux list-windows"
             ;;
         session*)
             _cur=$(tmux display-message -p "#S")
             _hdr="NAME,GROUP,CREATED"
-            _fmt="#{session_name}#{session_group}#{t/f/${datefmt}:session_created}"
+            _fmt="#{session_name}|#{session_group}|#{t/f/${datefmt}:session_created}"
             _cmd="tmux list-sessions"
             ;;
     esac
@@ -133,7 +133,7 @@ get_target() {
     # shellcheck disable=SC2086
     $_cmd -F "$_fmt" |
         sed "s@$HOME@~@" |
-        column -t -s -N "$_hdr" |
+        column -t -s'|' -N "$_hdr" |
         sed -e "/^$_cur /!s/^/  /" \
             -e "s/^\($_cur .*\)/* $active_color&$reset/" |
         fzf --header-lines 1 \
