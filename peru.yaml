@@ -9,6 +9,7 @@ git module fuzzy-sys:
       - fuzzy-sys
     UNLICENSE:
       - UNLICENSE.fuzzy-sys
+  executable: fuzzy-sys
   pick:
     - fuzzy-sys
     - UNLICENSE.fuzzy-sys
