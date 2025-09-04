@@ -36,7 +36,8 @@ Use fzf to switch to or kill tmux sessions, windows and panes
 QUERY can be used to refine the initial search
 
   -s         session to query. Current session by default
-  -k         kill
+  -p         print selection so that it can be passed back to tmux
+  -k         kill selection
   -n         do not colorize current session/window/pane
   -c [COLOR] color to highlight the current session/window/pane
                (256-color number, default = $TAG_CLR_DFLT)
@@ -73,11 +74,13 @@ active_color=$(tput setaf "$ACTIVE_CLR_DFLT")
 reset=$(tput sgr0)
 datefmt=$DATEFMT_DFLT
 kill=n
+print=n
 session=
 
-while getopts ':s:nc:f:khv' c; do
+while getopts ':s:pnc:f:khv' c; do
     case $c in
         s) session=$OPTARG ;;
+        p) print=y ;;
         n) active_color= ; reset= ; ansi= ;;
         c) active_color=$(tput setaf "$OPTARG") ;;
         f) datefmt=$OPTARG ;;
@@ -221,7 +224,13 @@ switch_target() {
 #
 id=$(get_target "$type" "$session" "$query" "$opts")
 
-if [ "$kill" = "y" ]; then
+if [ "$print" = 'y' ]; then
+    if [ -z "$id" ]; then
+        tmux display-message -p "#I.#P"
+    else
+        printf '%s\n' "$id"
+    fi
+elif [ "$kill" = "y" ]; then
     kill_target "$type" "$id"
 else
     switch_target "$type" "$id"
