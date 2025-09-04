@@ -35,12 +35,12 @@ Use fzf to switch to or kill tmux sessions, windows and panes
 
 QUERY can be used to refine the initial search
 
+  -s         session to query. Current session by default
+  -k         kill
   -n         do not colorize current session/window/pane
   -c [COLOR] color to highlight the current session/window/pane
                (256-color number, default = $TAG_CLR_DFLT)
   -f [FMT]   date format, default = $DATEFMT_DFLT
-  -s         switch (default)
-  -k         kill
   -h   	     display this help and exit
   -v         output version information and exit
 
@@ -73,14 +73,15 @@ active_color=$(tput setaf "$ACTIVE_CLR_DFLT")
 reset=$(tput sgr0)
 datefmt=$DATEFMT_DFLT
 kill=n
+session=
 
-while getopts ':nc:f:kshv' c; do
+while getopts ':s:nc:f:khv' c; do
     case $c in
+        s) session=$OPTARG ;;
         n) active_color= ; reset= ; ansi= ;;
         c) active_color=$(tput setaf "$OPTARG") ;;
         f) datefmt=$OPTARG ;;
         k) kill=y ;;
-        s) kill=n ;;
         h) print_help; exit 0 ;;
         v) print_version; exit 0 ;;
         ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
@@ -127,23 +128,29 @@ query=$@
 # @description Use fzf to select a tmux session, window or pane
 #
 # @arg $1 pane|window|session What type to list and select
-# @arg $2 string              Initial fzf query
+# @arg $2 string              Session to query (current if empty)
+# @arg $3 string              Initial fzf query
+# @arg ...                    Options to pass to fzf
 #
 # @return string Tmux pane, window or sessions name/id to operate on
 #
 get_target() {
-    case $1 in
+    type=$1; shift
+    session=$1; shift
+    query=$1; shift
+
+    case $type in
         pane*)
             _cur=$(tmux display-message -p "#I.#P")
             _hdr="WIN:PANE,NAME,CMD,PATH"
             _fmt="#I.#P|#T|#{pane_current_command}|#{pane_current_path}"
-            _cmd="tmux list-panes -s"
+            _cmd="tmux list-panes -s ${session:+-t "$session:"}"
             ;;
         window*)
             _cur=$(tmux display-message -p "#I")
             _hdr="WIN,NAME"
             _fmt="#I|#{window_name}"
-            _cmd="tmux list-windows"
+            _cmd="tmux list-windows ${session:+-t "$session:"}"
             ;;
         session*)
             _cur=$(tmux display-message -p "#S")
@@ -153,7 +160,6 @@ get_target() {
             ;;
         *) printf "Trying to select '%s'\n" "$1" >&2; return 1 ;;
     esac
-    query=$2; shift 2
 
     [ -z "$ansi" ] && cur_mark=* || unset cur_mark
     # shellcheck disable=SC2086
@@ -214,8 +220,8 @@ switch_target() {
 # Main {{{1
 #
 if [ "$kill" = "y" ]; then
-    kill_target "$type" "$(get_target "$type" "$query" "$opts")"
+    kill_target "$type" "$(get_target "$type" "$session" "$query" "$opts")"
 else
-    switch_target "$type" "$(get_target "$type" "$query" "$opts")"
+    switch_target "$type" "$(get_target "$type" "$session" "$query" "$opts")"
 fi
 
