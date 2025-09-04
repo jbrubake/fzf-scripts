@@ -219,9 +219,11 @@ switch_target() {
 
 # Main {{{1
 #
+id=$(get_target "$type" "$session" "$query" "$opts")
+
 if [ "$kill" = "y" ]; then
-    kill_target "$type" "$(get_target "$type" "$session" "$query" "$opts")"
+    kill_target "$type" "$id"
 else
-    switch_target "$type" "$(get_target "$type" "$session" "$query" "$opts")"
+    switch_target "$type" "$id"
 fi
 
