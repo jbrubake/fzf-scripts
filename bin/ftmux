@@ -141,8 +141,8 @@ get_target() {
             ;;
         window*)
             _cur=$(tmux display-message -p "#I")
-            _hdr="WIN,NAME,PATH"
-            _fmt="#I|#{window_name}|#{pane_current_path}"
+            _hdr="WIN,NAME"
+            _fmt="#I|#{window_name}"
             _cmd="tmux list-windows"
             ;;
         session*)
