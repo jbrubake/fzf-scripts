@@ -113,7 +113,7 @@ get_target() {
         pane*)
             _cur=$(tmux display-message -p "#I:#P")
             _hdr="WIN:PANE,CMD,PATH"
-            _fmt="#I:#P|#{pane_current_command}|#{pane_current_path}"
+            _fmt="#I.#P|#{pane_current_command}|#{pane_current_path}"
             _cmd="tmux list-panes -s"
             ;;
         window*)
@@ -156,9 +156,7 @@ kill_target() {
     case $1 in
         session*) tmux kill-session -t "$2" ;;
         window*)  tmux kill-window  -t "$2" ;;
-        pane*)    tmux kill-pane    -t \
-            "$(echo "$2" | cut -d: -f1).$(echo "$2" | cut -d: -f2)"
-            ;;
+        pane*)    tmux kill-pane    -t "$2" ;;
     esac
 }
 
@@ -175,11 +173,9 @@ switch_target() {
         session*) tmux switch-client -t "$2" ;;
         window*)  tmux select-window  -t "$2" ;;
         pane*)
-            _win=$(echo "$2" | cut -d: -f1)
-            _pane=$(echo "$2" | cut -d: -f2)
-            tmux select-pane -t "${_win}.${_pane}"
-            [ "$(tmux display-message -p "#I")" -eq "$_win" ] ||
-                tmux select-window -t "$_win"
+            tmux select-pane -t "$2"
+            [ "$(tmux display-message -p "#I")" -eq "${2%.*}" ] ||
+                tmux select-window -t "${2%.*}"
             ;;
     esac
 }
