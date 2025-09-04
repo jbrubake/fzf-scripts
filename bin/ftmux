@@ -147,8 +147,8 @@ get_target() {
             ;;
         session*)
             _cur=$(tmux display-message -p "#S")
-            _hdr="NAME,GROUP,CREATED"
-            _fmt="#{session_name}|#{session_group}|#{t/f/${datefmt}:session_created}"
+            _hdr="NAME,NAME,GROUP,CREATED"
+            _fmt="#S|#S|#{session_group}|#{t/f/${datefmt}:session_created}"
             _cmd="tmux list-sessions"
             ;;
     esac
