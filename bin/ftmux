@@ -144,15 +144,15 @@ get_target() {
 
     case $type in
         pane*)
-            _cur=$(tmux display-message -p "#I.#P")
-            _hdr="WIN:PANE,NAME,CMD,PATH"
-            _fmt="#I.#P|#T|#{pane_current_command}|#{pane_current_path}"
+            _cur=$(tmux display-message -p "#S:#I.#P")
+            _hdr="SESS:WIN:PANE,NAME,CMD,PATH"
+            _fmt="#S:#I.#P|#T|#{pane_current_command}|#{pane_current_path}"
             _cmd="tmux list-panes -s ${session:+-t "$session:"}"
             ;;
         window*)
-            _cur=$(tmux display-message -p "#I")
-            _hdr="WIN,NAME"
-            _fmt="#I|#{window_name}"
+            _cur=$(tmux display-message -p "#S:#I")
+            _hdr="SESS:WIN,NAME"
+            _fmt="#S:#I|#{window_name}"
             _cmd="tmux list-windows ${session:+-t "$session:"}"
             ;;
         session*)
@@ -169,8 +169,8 @@ get_target() {
     $_cmd -F "$_fmt" |
         sed \
         -e "s@$HOME@~@" \
-        -e "/^$_cur/s/|\([^|]*\)/|$active_color$cur_mark\1$cur_mark/" \
-        -e "/^$_cur/s/$/$reset/" |
+        -e "/^$_cur|/s/|\([^|]*\)/|$active_color$cur_mark\1$cur_mark/" \
+        -e "/^$_cur|/s/$/$reset/" |
         column -t -s'|' -N "$_hdr" |
         fzf --header-lines 1 \
             $ansi \
