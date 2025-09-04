@@ -29,7 +29,7 @@ VERSION='1.0'
 
 print_help() {
     cat <<END >&2
-Usage: $0 [OPTION] <COMMAND> [QUERY]
+Usage: $0 [OPTION] <COMMAND> [OPTION] [-- [FZF_OPTION]] [QUERY]
 
 Use fzf to switch to or kill tmux sessions, windows and panes
 
@@ -111,7 +111,14 @@ case $type in
         ;;
 esac
 
-query=$1
+# Save fzf options
+for a in $@; do
+    case $a in
+        -*|--*) opts="$opts $a"; shift ;;
+    esac
+done
+# Everything else is the starting query
+query=$@
 
 # Functions {{{1
 #
@@ -145,6 +152,7 @@ get_target() {
             _cmd="tmux list-sessions"
             ;;
     esac
+    query=$2; shift 2
 
     # shellcheck disable=SC2086
     $_cmd -F "$_fmt" |
@@ -154,9 +162,10 @@ get_target() {
             -e "s/^\($_cur .*\)/* $active_color&$reset/" |
         fzf --header-lines 1 \
             $ansi \
-            --query "$2" \
+            --query "$query" \
             --with-nth 2.. \
-            --exit-0  |
+            --exit-0 \
+            $@ |
         sed 's/^\*//' |
         awk '{print $1}'
 }
@@ -202,8 +211,8 @@ switch_target() {
 # Main {{{1
 #
 if [ "$kill" = "y" ]; then
-    kill_target "$type" "$(get_target "$type" "$query")"
+    kill_target "$type" "$(get_target "$type" "$query" "$opts")"
 else
-    switch_target "$type" "$(get_target "$type" "$query")"
+    switch_target "$type" "$(get_target "$type" "$query" "$opts")"
 fi
 
