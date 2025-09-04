@@ -7,17 +7,19 @@ git module fuzzy-sys:
   move:
     fuzzy-sys.plugin.zsh:
       - fuzzy-sys
+    UNLICENSE:
+      - UNLICENSE.fuzzy-sys
   pick:
     - fuzzy-sys
-    - UNLICENSE
+    - UNLICENSE.fuzzy-sys
 
 git module forgit:
   url: https://github.com/wfxr/forgit
   move:
     LICENSE:
-      - LICENSE.mit
+      - LICENSE.forgit
   pick:
     - bin/git-forgit
     - completions/git-forgit.bash
-    - LICENSE.mit
+    - LICENSE.forgit
 
