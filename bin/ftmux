@@ -139,6 +139,7 @@ get_target() {
         fzf --header-lines 1 \
             $ansi \
             --query "$2" \
+            --with-nth 2.. \
             --exit-0  |
         sed 's/^\*//' |
         awk '{print $1}'
