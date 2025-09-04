@@ -134,7 +134,7 @@ query=$@
 get_target() {
     case $1 in
         pane*)
-            _cur=$(tmux display-message -p "#I:#P")
+            _cur=$(tmux display-message -p "#I.#P")
             _hdr="WIN:PANE,NAME,CMD,PATH"
             _fmt="#I.#P|#T|#{pane_current_command}|#{pane_current_path}"
             _cmd="tmux list-panes -s"
