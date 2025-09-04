@@ -48,6 +48,9 @@ Commands:
   pane       operate on panes
   window     operate on windows
   session    operate on sessions
+
+pane Options:
+  -z         zoom pane
 END
 }
 
@@ -87,15 +90,28 @@ shift $((OPTIND-1))
 OPTIND=1
 
 case $1 in
-    pane* | window* | session*)
-        type=$1
-        query=$2
-        ;;
-    *)
-        printf "None of pane|window|session specified. Exiting...\n" >&2
-        exit 1
+    pane* | window* | session*) type=$1; shift ;;
+    *) printf "None of pane|window|session specified. Exiting...\n" >&2
+       exit 1
+       ;;
+esac
+
+zoom=
+case $type in
+    pane*)
+        while getopts ':zh' c; do
+            case $c in
+                z) zoom=y ;;
+                h) print_help; exit 0 ;;
+                ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
+            esac
+        done
+        shift $((OPTIND-1))
+        OPTIND=1
         ;;
 esac
+
+query=$1
 
 # Functions {{{1
 #
@@ -177,6 +193,8 @@ switch_target() {
             tmux select-pane -t "$2"
             [ "$(tmux display-message -p "#I")" -eq "${2%.*}" ] ||
                 tmux select-window -t "${2%.*}"
+            [ -n "$zoom" ] &&
+                tmux resize-pane -Z
             ;;
     esac
 }
