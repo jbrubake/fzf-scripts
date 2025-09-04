@@ -29,7 +29,7 @@ VERSION='1.0'
 
 print_help() {
     cat <<END >&2
-Usage: $0 [OPTION] [QUERY]
+Usage: $0 [OPTION] <COMMAND> [QUERY]
 
 Use fzf to switch to or kill tmux sessions, windows and panes
 
@@ -43,6 +43,11 @@ QUERY can be used to refine the initial search
   -k         kill
   -h   	     display this help and exit
   -v         output version information and exit
+
+Commands:
+  pane       operate on panes
+  window     operate on windows
+  session    operate on sessions
 END
 }
 
