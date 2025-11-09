@@ -116,9 +116,12 @@ case $type in
 esac
 
 # Save fzf options
+unset opts query
 for a in "$@"; do
     case $a in
+        --) shift; break ;;
         -*|--*) opts="$opts $a"; shift ;;
+        *) break ;;
     esac
 done
 # Everything else is the starting query
