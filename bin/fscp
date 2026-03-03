@@ -1,0 +1,92 @@
+#!/bin/sh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2026 Jeremy Brubaker <jbru362@gmail.com>
+# Copyright 2016 Daniel F. Gray
+#
+# abstract: Use fzf to select and download remote files using scp
+#
+# Based on the original sshget at
+# https://raw.githubusercontent.com/DanielFGray/fzf-scripts/master/sshget
+#
+# Documentation {{{1
+#
+VERSION=1.0
+print_version() { # {{{2
+    cat <<END
+$(basename "$0") $VERSION
+Copyright (C) 2026 Orion Arts
+Copyright (C) 2016 Daniel F. Gray
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Jeremy Brubaker.
+END
+} >&2
+
+print_help() { # {{{2
+    cat <<END
+Usage: $(basename "$0") <[USER@]HOST[:/path/to/search]>
+
+Use fzf to select and download remote files using scp
+
+  -h   	    display this help and exit
+  -V        output version information and exit
+END
+} >&2
+
+# Process options {{{1
+#
+die() {
+    [ -n "$*" ] && printf '%s\n' "$*" >&2
+    exit 1
+}
+
+command -v fzf >/dev/null || die "fzf not found!"
+
+while getopts ":hV" opt; do
+    case $opt in
+        h)  print_help; exit ;;
+        V)  print_version; exit ;;
+        \?) print_invalid "-$OPTARG"; print_help; exit 1 ;;
+        :)  print_noarg "$OPTARG"; print_help; exit 1 ;;
+    esac
+done
+shift $((OPTIND-1))
+OPTIND=1
+
+if [ "$#" -ne 1 ]; then
+    print_help
+    die
+fi
+
+# Main {{{1
+#
+# Extract host and path. A trailing ':' is assumed if not found
+case $1 in
+    *:*) host=${1%:*}; path=${1##*:} ;;
+    *)   host=$1;      path= ;;
+esac
+
+# Use ssh to find files and pipe into fzf. Joind with spaces so scp works
+files=$(
+    ssh "$host" "find $path" 2>/dev/null | sed -r "s|^|$host:|" |
+        fzf --multi --bind='Ctrl-A:toggle-all' |
+        paste -sd' '
+    )
+
+[ -n "$files" ] && echo scp $files .
+
