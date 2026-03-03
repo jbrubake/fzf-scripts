@@ -20,6 +20,8 @@
 #
 # Based on the original pkgsearch at
 # https://raw.githubusercontent.com/DanielFGray/fzf-scripts/master/pkgsearch
+# and pkgrm at
+# https://raw.githubusercontent.com/DanielFGray/fzf-scripts/refs/heads/master/pkgrm
 #
 # Documentation {{{1
 #
@@ -57,8 +59,13 @@ die() {
 
 command -v fzf >/dev/null || die "fzf not found!"
 
-while getopts ":hV" opt; do
+unset remove
+
+print_noarg()   { printf '%s requires an argument\n' "$1"; } >&2
+print_invalid() { printf 'Invalid option: %s\n' "$1"; } >&2
+while getopts ":RhV" opt; do
     case $opt in
+        R)  remove=true ;;
         h)  print_help; exit ;;
         V)  print_version; exit ;;
         \?) print_invalid "-$OPTARG"; print_help; exit 1 ;;
@@ -87,14 +94,20 @@ fzf() { # {{{2
         "$@"
 }
 
-install() { # {{{2
+do_it() { # {{{2
     pkgs=$(paste -sd' ' -)
 
     [ -z "$pkgs" ] && return
 
     count=$(( $(echo "$pkgs" | tr -dc ' ' | wc -m) + 1))
 
-    printf 'Installing %s packages: %s\n' "$count" "$pkgs"
+    if [ -z "$remove" ]; then
+        action=Installing
+    else
+        action=Uninstalling
+    fi
+
+    printf '%s %s packages: %s\n' "$action" "$count" "$pkgs"
     echo
 
     unset sudo
@@ -105,30 +118,52 @@ install() { # {{{2
 }
 
 do_apt() { # {{{2
-    apt-cache search '.*' |
+    remove=$1; shift
+    if [ -z "$remove" ]; then
+        cmd='apt-cache-search ".*"'
+        preview='p={}; p="${p%%:*}"; apt-cache show "$p"'
+        action=install
+    else
+        cmd='apt list --installed 2>/dev/null | grep -F "[installed]"'
+        preview='apt info {1}'
+        action=remove
+    fi
+
+    $cmd |
     sort |
     sed -e "s/^/$c_green/" -e "s/ -/$c_reset:/" |
     fzf --query="$*" \
-        --preview='p={}; p="${p%%:*}"; apt-cache show "$p"' |
-    install 'apt install'
+        --preview=$preview |
+    do_it "apt $action"
 }
 
 do_dnf() { # {{{2
-    dnf --quiet --cacheonly \
-        repoquery --qf "$c_green%{name}$c_reset: %{summary}\n" \* |
+    remove=$1; shift
+    if [ -z "$remove" ]; then
+        action=install
+        cache=--cacheonly
+        userinstalled=
+    else
+        action=remove
+        cache=
+        userinstalled=--userinstalled
+    fi
+
+    dnf --quiet $cacheonly \
+        repoquery $userinstalled --qf "$c_green%{name}$c_reset: %{summary}\n" \* |
     sort |
     fzf --query="$*" \
         --preview='p={}; p="${p%%:*}"; dnf -q info "$p"' |
-    install 'dnf install'
+    do_it "dnf $action"
 }
 
 # Main {{{1
 #
   if command -v dnf >/dev/null; then
-    do_dnf "$*"
+    do_dnf "$remove" "$*"
 elif command -v apt-get >/dev/null; then
-    do_apt "$*"
+    do_apt "$remove" "$*"
 else
     die 'Unsupported distribution!'
-  fi
+fi
 
