@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,132 +13,99 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-# Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
+# Copyright 2026 Jeremy Brubaker <jbru362@gmail.com>
+# Copyright 2016 Daniel F. Gray
 #
-# Inspired by:
-#   https://raw.githubusercontent.com/DanielFGray/fzf-scripts/master/igr
+# abstract: Interactive grep using fzf
+#
+# Based on the original pkgsearch at
+# https://raw.githubusercontent.com/DanielFGray/fzf-scripts/master/igr
 #
 # Defaults {{{1
-# grep(1) default fn color
-FILE_CLR_DFLT=35
+#
+CONTEXT=3 # default lines of grep context
 
 # Documentation {{{1
 #
-VERSION='1.0'
-
-print_help() {
-    cat <<END >&2
-Usage: $0 [OPTION] [QUERY]
-
-Use fzf to search end edit files
-
-QUERY can be used to refine the initial search
-
-  -n         do not colorize current session/window/pane
-  -l         list files (grep -l)
-  -h   	     display this help and exit
-  -v         output version information and exit
-END
-}
-
-print_version() {
-    cat <<END >&2
-$0 $VERSION
-Copyright (C) 2023 Orion Arts
+VERSION=1.0
+print_version() { # {{{2
+    cat <<END
+$(basename "$0") $VERSION
+Copyright (C) 2026 Orion Arts
+Copyright (C) 2016 Daniel F. Gray
 License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
 This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
 
 Written by Jeremy Brubaker.
 END
-}
+} >&2
+
+print_help() { # {{{2
+    cat <<END
+Usage: $(basename "$0") [OPTIONS] [QUERY]
+
+Interactive grep using fzf. The default action is to print selected files to stdout
+
+  -e        edit selected files in \$EDITOR
+  -c [CMD]  pass selected files to CMD
+  -C [NUM]  display NUM lines of context (Default: $CONTEXT)
+  -h   	    display this help and exit
+  -V        output version information and exit
+END
+} >&2
 
 # Process options {{{1
 #
-list_files=
-USE_COLOR=yes
-export USE_COLOR
+if ! command -v fzf >/dev/null; then
+    printf '%s\n' 'fzf not found!' >&2
+    exit 1
+fi
 
-while getopts ':nlhv' c; do
-    case $c in
-		n) USE_COLOR= ;;
-        l) list_files=1 ;;
-        h) print_help; exit 0 ;;
-        v) print_version; exit 0 ;;
-        ?) printf "Invalid option: -%s\n" "$OPTARG" >&2; print_help; exit 1 ;;
+edit=false
+unset command
+while getopts ":ec:C:hV" opt; do
+    case $opt in
+        e)  edit=true; unset command ;;
+        c)  command=$OPTARG; unset edit ;;
+        C)  CONTEXT=$OPTARG ;;
+        h)  print_help; exit ;;
+        V)  print_version; exit ;;
+        \?) print_invalid "-$OPTARG"; print_help; exit 1 ;;
+        :)  print_noarg "$OPTARG"; print_help; exit 1 ;;
     esac
 done
 shift $((OPTIND-1))
 OPTIND=1
 
-# Functions {{{1
-#
-# search {{{2
-#
-# @description Format grep results into a table
-#
-# @arg $1 string grep(1) search string
-#
-# @global USE_COLOR use color if set
-#
-# @stdout grep(1) results formatted into a table and colorized if needed
-#
-search() {
-	# colorized grep(1) output can't be properly run through column(1)
-	# so we have to colorize it ourselves
-	if [ -n "$USE_COLOR" ]; then
-		grepclr='--color=always'
-		reset=$(tput sgr0)
-
-		# if GREP_COLORS is defined, get the user's configured fn color
-		if [ -n "$GREP_COLORS" ]; then
-            fn=${GREP_COLORS##*fn=}
-            fn=${fn%%:*}
-        fi
-
-		# set fn color as needed
-		fn=$(printf "[%sm" "${fn:-"$FILE_CLR_DFLT"}")
-		# don't let grep colorize fn and ln
-		GREP_COLORS=fn=:ln=:
-	else
-		grepclr='--color=never'
-	fi
-
-	# sed 1&2: convert field separator to ^^
-	# sed 3: colorize filename
-	grep -Rn ${list_files:+-l} $grepclr "$1" 2> /dev/null |
-	sed -e 's/://' -e 's/://' \
-		-e "s/^[^]*/$fn&$reset/" |
-	column -t -s
-}
-export -f search
-
-# preview {{{2
-#
-# @description Preview a given file around a search string and optionally highlight a line
-#
-# @arg $1 string File to preview
-# @arg $2 string Search string
-# @arg $3 int    Line to highlight (optional)
-#
-# @stdout File preview
-#
-preview() {
-	bat --color always --style header,numbers \
-		${3:+-H "$3"} \
-		"$1" | 
-	grep -C3 "$2"
-}
-export -f preview
+if [ "$#" -ne 1 ]; then
+    printf 'Search for what?\n' >&2
+    print_help
+    exit 1
+fi
 
 # Main {{{1
 #
-search "$1" | fzf \
-	${USE_COLOR:+--ansi} \
-	--with-nth 1,3.. \
-	--query="$1" \
-	--disabled \
-	--bind="change:reload(search {q})" \
-	--bind='enter:become(vim +{2} {1})' \
-	--preview "[ -n {1} ] && preview {1} {q} {2}"
+if command -v rg /dev/null; then
+    search='rg --color=always'
+else
+    search='grep -R --color=always'
+fi
+
+files=$(fzf --query="$*" \
+    --delimiter=: \
+    --accept-nth=1 \
+    --ansi \
+    --multi \
+    --bind="change:reload:$search {q}" \
+    --bind="start:reload:$search {q}" \
+    --preview="[ -n '{1}' ] && grep -C$CONTEXT {q} {1}")
+
+if [ "$edit" = true ]; then
+    $EDITOR $files
+elif [ -n "$command" ]; then
+    $command $files
+else
+    printf -- '%s\n' "$files"
+fi
 
