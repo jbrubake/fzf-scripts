@@ -1,0 +1,101 @@
+#!/bin/sh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Copyright 2026 Jeremy Brubaker <jbru362@gmail.com>
+#
+# abstract: Use fzf to manage git stashes
+#
+# Based on the original fstash at
+# https://github.com/mattorb/dotfiles/blob/master/bin/fstash
+#
+# Documentation {{{1
+#
+VERSION=1.0
+print_version() { # {{{2
+    cat <<END
+$(basename "$0") $VERSION
+Copyright (C) 2026 Orion Arts
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Jeremy Brubaker.
+END
+} >&2
+
+print_help() { # {{{2
+    cat <<END
+Usage: $(basename "$0") [OPTIONS] [QUERY]
+
+Use fzf to manage git stashes
+
+  -h   	    display this help and exit
+  -V        output version information and exit
+END
+} >&2
+
+# Process options {{{1
+#
+if ! command -v fzf >/dev/null; then
+    printf '%s\n' 'fzf not found!' >&2
+    exit 1
+fi
+
+while getopts ":hV" opt; do
+    case $opt in
+        h)  print_help; exit ;;
+        V)  print_version; exit ;;
+        \?) print_invalid "-$OPTARG"; print_help; exit 1 ;;
+        :)  print_noarg "$OPTARG"; print_help; exit 1 ;;
+    esac
+done
+shift $((OPTIND-1))
+OPTIND=1
+
+# Functions {{{1
+#
+do_diff() { git diff --color=always -p "$1" | $PAGER; }
+export -f do_diff
+
+do_mkbranch() {
+    sha=$(echo "$2" | cut -d' ' -f1)
+    git stash branch "stash-$sha" "$1"
+}
+export -f do_mkbranch
+
+do_pop() { git stash pop "$1"; }
+export -f do_pop
+
+do_del() { git stash drop "$1"; }
+export -f do_del
+
+get_stash_list() { git stash list; }
+export -f get_stash_list
+
+# Main {{{1
+#
+get_stash_list |
+fzf --query="$*" \
+    --ansi \
+    --no-sort \
+    --delimiter=: \
+    --accept-nth=1 \
+    --header '[^/]Pop [^b]Branch [^d]Diff [Del]Delete [Enter]Print stash #' \
+    --bind='ctrl-d:execute(do_diff {1})' \
+    --bind='ctrl-b:execute(do_mkbranch {1} {3})+reload(get_stash_list)' \
+    --bind='ctrl-/:execute(do_pop {1})+reload(get_stash_list)' \
+    --bind='del:execute(do_del {1})+reload(get_stash_list)' \
+    --preview='git show --color=always -p {1}'
+
