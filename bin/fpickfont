@@ -35,5 +35,5 @@ fc-list | sed \
         --header "[Enter]Preview [^Y]Copy file path" \
         --header-first \
         --bind 'enter:execute(display {1})' \
-        --bind 'ctrl-y:execute(echo {1} | xclip -in -selection clipboard)+abort'
+        --bind 'ctrl-y:execute(echo {1} | xclip -in -selection clipboard)+accept'
 
