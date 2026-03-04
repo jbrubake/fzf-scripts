@@ -45,4 +45,6 @@ distclean: clean
 
 $(peru): peru.yaml
 	peru sync
+	# peru sync does not set mtime
+	touch $@
 
