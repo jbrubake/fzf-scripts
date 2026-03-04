@@ -20,17 +20,167 @@
 # Based on:
 #   https://github.com/junegunn/fzf/wiki/examples
 #
-uid="$(id -u)"
+# Documentation {{{1
+#
+VERSION=2.0
+print_version() { # {{{2
+    cat <<END
+$(basename "$0") $VERSION
+Copyright (C) 2026 Orion Arts
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
 
+Written by Jeremy Brubaker.
+END
+} >&2
+
+print_help() { # {{{2
+    cat <<END
+Usage: $(basename "$0") [options] <query>
+
+Kill processes selected using fzf <query>
+
+Options:
+  -s <signal>      send this <signal> instead of SIGTERM
+  -l               list signal names
+  -<signal_name>   equivalent to -s <signal_name>
+  -<signal_number> send the signal represented by this number
+                     instead of SIGTERM
+  -h               display this help and exit
+  -V               output version information and exit
+END
+} >&2
+
+# Process options {{{1
+#
+# canon() {{{2
+#
+# Make a signal spec look nice
+#
+canon() {
+    case $1 in
+        *[!0123456789]*)
+            echo "$1" | tr '[:lower:]' '[:upper:]' | sed 's/^SIG//'
+            ;;
+        *) echo "$1" ;;
+    esac
+}
+
+# is_sig() {{{2
+#
+# Return true if $1 is a valid signal spec
+#
+# BUGS: Assumes any digit is a valid signal
+#
+is_sig() {
+    # Get a list of uppercase signal names with SIG removed
+    #
+    _signals=$(kill -l |
+        tr -s '[:space:]' '\n' |
+        sed -n '/^[[:alpha:]]/{s/^SIG//;p}' |
+        tr '[:lower:]' '[:upper:]')
+
+    # Uppercase $1 and remove SIG prefix
+    _sig=$(canon "$1")
+
+    # $1 is a signal if it exists in the list of signals
+    echo "$_signals" | grep -q "^$_sig$" && return 0
+
+    # $1 is a signal if it is a sequence of digits
+    case $_sig in
+        *[!0123456789]*) return 1 ;;
+        *)               return 0 ;;
+    esac
+}
+
+# get_arg() {{{2
+#
+# Print the option's argument given as any of:
+#  -s<ARG>
+#  -s <ARG>
+#  -<ARG>
+#
+# Return the number of args the caller should shift off $@
+#
+get_arg() {
+    shift=0
+    case $1 in
+        # Grab the next arg and tell the caller to shift it
+        -s)  arg=$2; [ $# -gt 1 ] && shift=1 ;;
+
+        # Extract arg from the option
+        -s*) arg=$(printf '%s' "$1" | sed 's/^-s//') ;;
+        -*)  arg=$(printf '%s' "$1" | sed 's/^-//') ;;
+    esac
+
+    printf '%s' "$arg"
+
+    # Number of args the caller should drop
+    return "$shift"
+}
+
+# invalid_signal() {{{2
+#
+# Print an invalid signal message and exit
+#
+invalid_signal() {
+    printf '%s: %s: invalid signal specification\n' "$0" "$1" >&2
+    exit 1
+}
+
+# Process command line {{{2
+#
+while [ -n "$*" ]; do
+    arg=$1; shift
+
+    case $arg in
+        -l)  kill -l; exit ;;
+
+        -h)  print_help; exit ;;
+        -V)  print_version; exit ;;
+
+        # Handle -s<signal>, -s <signal> and -<signal>
+        -*)
+            sig=$(get_arg "$arg" "$@")
+            shift $?
+
+            [ -z "$sig" ] && invalid_signal "$sig"
+            ;;
+
+        *)   query="$arg $*"; break ;;
+    esac
+done
+
+# Set a default signal
+if [ -z "$sig" ]; then
+    sig=TERM
+# Exit on invalid signals
+elif [ -n "$sig" ] && ! is_sig "$sig"; then
+    invalid_signal "$sig"
+# Canonicalize signal
+else
+    sig=$(canon "$sig")
+fi
+
+# Main {{{1
+#
+# Show all rocesses if EUID == 0
+uid="$(id -u)"
 if [ "$uid" = "0" ]; then
     opt=-e
+# Otherwise show only your processes
 else
     opt="-u $uid"
 fi
 
 # shellcheck disable=SC2086
 ps -f $opt |
-    fzf --multi --header-lines 1 |
+    fzf --multi \
+        --header="Call \`kill -$sig\`" \
+        --header-first \
+        --header-lines=1 \
+        ${query:+--query "$query"} |
     awk '{print $2}' |
-    xargs -I{} kill -"${1:-KILL}" {}
+    xargs -I{} echo kill ${sig:+-$sig} {}
 
