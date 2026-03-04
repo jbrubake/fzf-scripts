@@ -4,6 +4,8 @@ imports:
 
 git module fuzzy-sys:
   url: https://github.com/NullSense/fuzzy-sys
+  # license: UNLICENSE [src/UNLICENSE.fuzzy-sys]
+  # fsystemctl # abstract: fzf wrapper for systemctl
   move:
     fuzzy-sys.plugin.zsh: fuzzy-sys
     UNLICENSE: UNLICENSE.fuzzy-sys
@@ -14,6 +16,8 @@ git module fuzzy-sys:
 
 git module forgit:
   url: https://github.com/wfxr/forgit
+  # license: MIT [bin/UNLICENSE.forgit]
+  # git-forgit # abstract: a utility tool powered by fzf for using git interactively
   move:
     LICENSE: LICENSE.forgit
   pick:
