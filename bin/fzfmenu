@@ -15,47 +15,151 @@
 #
 # Copyright 2023 Jeremy Brubaker <jbru362@gmail.com>
 #
+# abstract: Use fzf as a dmenu replacement
+#
 # Inspired by:
 #   https://github.com/junegunn/fzf/wiki/examples#fzf-as-dmenu-replacement
 #
+# Defaults {{{1
+CLASS=fzfmenu
+
+# Documentation {{{1
+#
+VERSION=2.0
+print_version() { # {{{2
+    cat <<END
+$(basename "$0") $VERSION
+Copyright (C) 2023 Orion Arts
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+
+Written by Jeremy Brubaker.
+END
+} >&2
+
+print_help() { # {{{2
+    cat <<END
+Usage: $(basename "$0") [-g COLUMNSxLINES] [FZF OPTIONS]
+
+Use fzf as a dmenu replacement
+
+Options:
+  (All other options and arguments are passed through to fzf)
+
+  -g COLUMNSxLINES set terminal geometry
+  -h               display this help and exit
+  -V               output version information and exit
+END
+} >&2
+
+# Process options {{{1
+#
+# set_geom() {{{2
+#
+# Set $FZF_COLS and $lines from an option given as any of:
+#  -g<ARG>
+#  -g <ARG>
+#  -g=<ARG>
+#
+# Return the number of args the caller should shift off $@
+#
+set_geom() {
+    shift=0
+    case $1 in
+        # Grab the next arg and tell the caller to shift it
+        -g)  arg=$2; [ $# -gt 1 ] && shift=1 ;;
+
+        -g=*) arg=$(printf '%s' "$1" | sed 's/^-g=//') ;;
+        -g*) arg=$(printf '%s' "$1" | sed 's/^-g//') ;;
+    esac
+
+    FZF_COLS=$(echo "$arg" | cut -dx -f1)
+    FZF_LINES=$(echo "$arg" | cut -dx -f2)
+
+    # Number of args the caller should drop
+    return "$shift"
+}
+
+# Process command line {{{2
+#
+# BUG: Cannot add another option without properly rebuilding $@
+while [ -n "$*" ]; do
+    arg=$1; shift
+
+    case $arg in
+        -h)  print_help; exit ;;
+        -V)  print_version; exit ;;
+
+        # Handle -g<COLxLINE>, -g=<COLxLINE> and -g <COLxLINE>
+        -g*)
+            set_geom "$arg" "$@"
+            shift $?
+            break
+            ;;
+
+        *)  break ;;
+    esac
+done
+
 # Main {{{1
 #
-# Create named pipes to communicate with spawned fzf
+# Create named pipes to communicate with spawned fzf {{{2
 #
-if command -v mktemp >/dev/null; then
-    input=$(mktemp -u --suffix .fzfmenu-in)
-    output=$(mktemp -u --suffix .fzfmenu-out)
-else
-    input="/tmp/tmp.$$.fzfmenu-in"
-    output="/tmp/tmp.$$.fzfmenu-out"
-fi
+while true; do
+    if command -v mktemp >/dev/null; then
+        input=$(mktemp -up '' fzfmenu-in.XXXXXXXXXX)
+        output=$(mktemp -up '' fzfmenu-out.XXXXXXXXXX)
+    else
+        input="/tmp/fzfmenu-in.$$"
+        output="/tmp/fzfmenu-out.$$"
+    fi
 
-# Delete pipes on exit
+    oldmask=$(umask)
+    mask=0177
+    mkfifo "$input" && mkfifo "$output" && break
+    umask "$oldmask"
+done
+
+# Kill the spawned terminal and delete pipes on exit
 trap 'kill $! 2>/dev/null; rm -f $input $output' EXIT
 
-mask=$(umask)
-umask 0077
-mkfifo "$input"
-mkfifo "$output"
-umask "$mask"
+# Build the command line {{{2
+#
+# Set default geometry
+: ${FZF_COLS:=$COLUMNS}
+: ${FZF_LINES:=$LINES}
+
+# Pick a terminal and build the command
+#
+if command -v alacritty >/dev/null; then
+    term="alacritty --class $CLASS -o window.dimensions.lines=$FZF_LINES -o window.dimensions.columns=$FZF_COLS -e /bin/sh -c"
+elif command -v gnome-terminal >/dev/null; then
+    term="gnome-terminal --class $CLASS --name $CLASS --hide-menubar -- /bin/sh -c"
+elif command -v xterm >/dev/null; then
+    term="xterm -class $CLASS -name $CLASS -geometry ${FZF_COLS}x${FZF_LINES} -e /bin/sh -c"
+else
+    printf 'No supported terminal found!' >&2
+    exit 1
+fi
 
 # Try not to exit if calling process is killed
 if command -v setsid >/dev/null; then
-    cmd=setsid
-else
-    # shellcheck disable=SC2209 # I actually mean the string 'nohup' <sigh>
-    cmd=nohup
+    cmd='setsid'
 fi
 
+# Run the thing
+#
 # the ugly printf | sed thing is here to make args with quotes work.  (e.g.
 # --preview='echo {1}').  sadly we can't use "$@" here directly because we are
 # inside sh -c "..." call already.
-$cmd st -c fzfmenu -n fzfmenu -e sh -c "
+$cmd $term "
     cat $input |
-    fzf $(printf -- " '%s'" "$@" | sed "s/^ ''$//") |
-    tee $output" >/dev/null 2>&1 &
+    fzf $(printf -- " '%s'" "$@" | sed "s/^ ''$//") >$output" &
 
-# Redirect stdin and stdout
+# Send stdin to the fifo read by fzf
 cat > "$input"
+
+# read stdout from the fifo written by fzf
 cat "$output"
 
