@@ -19,9 +19,9 @@ git module forgit:
   # license: MIT [bin/UNLICENSE.forgit]
   # git-forgit # abstract: a utility tool powered by fzf for using git interactively
   move:
-    LICENSE: LICENSE.forgit
+    LICENSE: bin/LICENSE.forgit
   pick:
     - bin/git-forgit
     - completions/git-forgit.bash
-    - LICENSE.forgit
+    - bin/LICENSE.forgit
 
