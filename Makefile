@@ -1,5 +1,7 @@
 PREFIX ?= /usr/local
 
+readme := README.md
+
 # Directory containing external files that should not be edited
 srcdir := src
 # Directory containing editable scripts and converted files from $(srcdir)
@@ -13,7 +15,7 @@ completionsdir = share/bash-completion/$(completions)
 
 peru = .peru/lastimports
 
-all: $(bindir)/fsystemctl
+all: $(bindir)/fsystemctl $(readme)
 
 install: all
 	install -d $(PREFIX)/$(bindir)
@@ -39,6 +41,7 @@ $(bindir)/fsystemctl: $(srcdir)/fuzzy-sys $(peru)
 	sed -i 's/$(notdir $<)/$(notdir $@)/' $@
 
 clean:
+	$(RM) $(readme)
 
 distclean: clean
 	$(RM) $(bindir)/fsystemctl
@@ -47,4 +50,28 @@ $(peru): peru.yaml
 	peru sync
 	# peru sync does not set mtime
 	touch $@
+
+# Generate README.md from 'abstract' tags
+#
+readme_hdr := readme.header
+readme_ext := readme.external
+
+# Base URL for README links
+SRCPATH := https://github.com/jbrubake/fzf-scripts/blob/master
+
+# Look for 'abstract' in all tracked files
+scripts := $(shell git ls-files $(bindir))
+
+$(readme): peru.yaml $(readme_hdr) $(readme_ext) $(scripts)
+	> $@
+
+	# Read abstracts from internal files
+	cat $(readme_hdr) >> $@
+	./mkreadme.awk -v base_url=$(SRCPATH) $(filter-out $< $(readme_hdr) $(readme_ext),$^) >> $@
+	echo >> $@
+
+	# Read abstracts from $< (external files)
+	cat $(readme_ext) >> $@
+	./mkreadme.awk < $< | sort >> $@
+	echo >> $@
 
