@@ -6,7 +6,10 @@ function print_entry(name, base_url, filename, description, license)
     sub("^.*abstract[^:]*:[[:space:]]*", "", description)
 
     printf("- [%s](%s%s) - %s%s\n",
-        name, base_url, filename, description, license ? " (" license ")" : "")
+        name, base_url,
+        filename ? "/" filename : "",
+        description,
+        license ? " (" license ")" : "")
 }
 
 BEGINFILE {
@@ -65,7 +68,7 @@ BEGINFILE {
         # Strip source file extensions from name
         name = gensub("\\.c$", "", 1, name);
     } else {
-        target = "/" FILENAME
+        target = FILENAME
     }
 
     # Strip path from name
