@@ -27,3 +27,7 @@ curl -s https://unicode.org/Public/emoji/latest/emoji-test.txt |
     cut -d' ' -f1 |
     tr -d '\n' |
     xclip -in -selection clipboard
+
+xclip -out -selection clipboard
+echo
+
