@@ -19,7 +19,7 @@ all: $(bindir)/fsystemctl $(readme)
 
 install: all
 	install -d $(PREFIX)/$(bindir)
-	install $(bin) /usr/local/bin
+	install $(bin) $(PREFIX)/$(bindir)
 	install -d $(PREFIX)/$(completionsdir)
 	install $(completions)/* $(PREFIX)/$(completionsdir)
 
