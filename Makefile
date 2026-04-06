@@ -13,8 +13,6 @@ bin = $(filter-out $(wildcard $(bindir)/LICENSE*),$(wildcard $(bindir)/*))
 completions = completions
 completionsdir = share/bash-completion/$(completions)
 
-peru = .peru/lastimports
-
 all: $(bindir)/fsystemctl $(readme)
 
 install: all
@@ -25,7 +23,7 @@ install: all
 
 # Convert fuzzy-sys to an executable script and
 # change the name used in the help output
-$(bindir)/fsystemctl: $(srcdir)/fuzzy-sys $(peru)
+$(bindir)/fsystemctl: $(srcdir)/fuzzy-sys
 	mkdir -p $(dir $@)
 	> $@
 	chmod +x $@
@@ -45,11 +43,6 @@ clean:
 
 distclean: clean
 	$(RM) $(bindir)/fsystemctl
-
-$(peru): peru.yaml
-	peru sync
-	# peru sync does not set mtime
-	touch $@
 
 # Generate README.md from 'abstract' tags
 #
