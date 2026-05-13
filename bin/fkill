@@ -175,7 +175,7 @@ else
 fi
 
 # shellcheck disable=SC2086
-ps -f $opt |
+ps -f $opt | awk -v pid=$$ '$2 !~ pid { print }' |
     fzf --multi \
         --header="Call \`kill -$sig\`" \
         --header-first \
